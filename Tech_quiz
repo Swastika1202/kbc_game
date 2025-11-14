@@ -1,0 +1,221 @@
+import streamlit as st
+import matplotlib.pyplot as plt
+import json
+import os
+
+# --- Page Config ---
+st.set_page_config(page_title="Tech Quiz", layout="centered")
+
+# --- Custom CSS ---
+st.markdown("""
+    <style>
+    body {
+        background-image: url('https://tse3.mm.bing.net/th/id/OIP.A2FGbZQWtp3swawvwhsdGwHaEK?rs=1&pid=ImgDetMain&o=7&rm=3');
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+    .main {
+        padding: 2rem;
+        border-radius: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- Score File ---
+score_file = "email_scores.json"
+if not os.path.exists(score_file):
+    with open(score_file, "w") as f:
+        json.dump({}, f)
+
+def save_score(email, new_score):
+    with open(score_file, "r+") as f:
+        scores = json.load(f)
+        if email in scores:
+            scores[email].append(new_score)
+        else:
+            scores[email] = [new_score]
+        f.seek(0)
+        json.dump(scores, f)
+        f.truncate()
+
+def load_scores(email):
+    with open(score_file, "r") as f:
+        scores = json.load(f)
+        return scores.get(email, [])
+
+def plot_score_comparison(email, current_score):
+    scores = load_scores(email)
+    scores.append(current_score)
+    attempts = list(range(1, len(scores) + 1))
+
+    fig, ax = plt.subplots()
+    ax.plot(attempts, scores, marker='o', linestyle='-', color='blue')
+    ax.set_title(f"Score Progress for {email}")
+    ax.set_xlabel("Attempt")
+    ax.set_ylabel("Score")
+    ax.grid(True)
+    st.pyplot(fig)
+
+
+# --- Quiz Data ---
+quiz_data = {
+    "cn": {
+        "questions": [
+            "Which protocol is used to find the hardware address of a local device?",
+            "What does DHCP stand for in computer networking?",
+            "Which IP class is reserved for multicast groups?",
+            "Which OSI layer handles data compression?"
+        ],
+        "options": [
+            ["IP", "ARP", "RARP", "ICMP"],
+            ["Dynamic Host Configuration Protocol", "Data Host Control Protocol", "Dynamic Hypertext Control Protocol", "Data Handling Configuration Protocol"],
+            ["Class A", "Class B", "Class C", "Class D"],
+            ["Physical Layer", "Data Link Layer", "Transport Layer", "Presentation Layer"]
+        ],
+        "answers": [1, 0, 3, 3]
+    },
+    "python": {
+        "questions": [
+            "Which of the following is used to define a block of code in Python?",
+            "What is the output of print(type([]) is list)?",
+            "Which sorting algorithm is best for a random linked list?",
+            "What is the time complexity of searching in a balanced BST?"
+        ],
+        "options": [
+            ["Curly braces {}", "Parentheses ()", "Indentation", "Square brackets []"],
+            ["True", "False", "Error", "None"],
+            ["Insertion Sort", "Quick Sort", "Heap Sort", "Merge Sort"],
+            ["O(n)", "O(log n)", "O(n log n)", "O(1)"]
+        ],
+        "answers": [2, 0, 3, 1]
+    },
+    "dbms": {
+        "questions": [
+            "Which of the following is a valid SQL aggregate function?",
+            "In an ER diagram, an oval represents:",
+            "What is the main function of the transport layer in the OSI model?",
+            "Which of the following is used to define a relationship?"
+        ],
+        "options": [
+            ["COUNT", "JOIN", "SELECT", "INSERT"],
+            ["Entity", "Attribute", "Relationship", "Primary key"],
+            ["Routing", "Error detection", "Data encapsulation", "End-to-end communication"],
+            ["Foreign key", "Primary key", "Attribute", "Entity"]
+        ],
+        "answers": [0, 1, 3, 0]
+    },
+    "all": {
+        "questions": [
+            "Which protocol is used to find the hardware address of a local device?",
+            "What is the main function of the transport layer in the OSI model?",
+            "Which of the following is a valid SQL aggregate function?",
+            "In an ER diagram, an oval represents:",
+            "What does DHCP stand for in computer networking?",
+            "Which of the following is used to define a block of code in Python?",
+            "Which sorting algorithm is best for a random linked list?",
+            "Time complexity of searching in a balanced BST?",
+            "Which IP class is reserved for multicast groups?",
+            "Which OSI layer handles data compression?"
+        ],
+        "options": [
+            ["IP", "ARP", "RARP", "ICMP"],
+            ["Routing", "Error detection", "Data encapsulation", "End-to-end communication"],
+            ["COUNT", "JOIN", "SELECT", "INSERT"],
+            ["Entity", "Attribute", "Relationship", "Primary key"],
+            ["Dynamic Host Configuration Protocol", "Data Host Control Protocol", "Dynamic Hypertext Control Protocol", "Data Handling Configuration Protocol"],
+            ["Curly braces {}", "Parentheses ()", "Indentation", "Square brackets []"],
+            ["Insertion Sort", "Quick Sort", "Heap Sort", "Merge Sort"],
+            ["O(n)", "O(log n)", "O(n log n)", "O(1)"],
+            ["Class A", "Class B", "Class C", "Class D"],
+            ["Physical Layer", "Data Link Layer", "Transport Layer", "Presentation Layer"]
+        ],
+        "answers": [1, 3, 0, 1, 0, 2, 3, 1, 3, 3]
+    }
+}
+
+# --- Session State ---
+if "email" not in st.session_state:
+    st.session_state.email = ""
+    st.session_state.email_entered = False
+    st.session_state.quiz_started = False
+    st.session_state.q_index = 0
+    st.session_state.score = 0
+    st.session_state.finished = False
+    st.session_state.selected_field = None
+    st.session_state.user_answers = []
+    st.session_state.submitted = False
+
+# --- UI ---
+st.title("Tech Quiz Challenge")
+
+if not st.session_state.email_entered:
+    email = st.text_input("Enter your email to begin:")
+    if st.button("Confirm Email") and email:
+        st.session_state.email = email
+        st.session_state.email_entered = True
+        st.success(f"Welcome, {email}!")
+        previous_scores = load_scores(email)
+        if previous_scores:
+            st.info(f"Previous attempts: {len(previous_scores)} | Last Score: {previous_scores[-1]}")
+        else:
+            st.info("No previous attempts found. Let's begin!")
+
+# --- Quiz Selection ---
+if st.session_state.email_entered and not st.session_state.quiz_started:
+    st.subheader("Choose your domain and test your knowledge!")
+    field = st.selectbox("Select your field:", list(quiz_data.keys()))
+    if st.button("Start Quiz"):
+        st.session_state.quiz_started = True
+        st.session_state.q_index = 0
+        st.session_state.score = 0
+        st.session_state.finished = False
+        st.session_state.selected_field = field
+        st.session_state.user_answers = []
+        st.session_state.submitted = False
+
+# --- Quiz Flow ---
+if st.session_state.quiz_started and not st.session_state.finished:
+    data = quiz_data[st.session_state.selected_field]
+    q_idx = st.session_state.q_index
+
+    st.markdown(f"**Question {q_idx + 1}:** {data['questions'][q_idx]}")
+    user_answer = st.radio("Choose your answer:", data['options'][q_idx], key=q_idx)
+
+    if st.button("Submit Answer") and not st.session_state.submitted:
+        correct = data['options'][q_idx][data['answers'][q_idx]]
+        st.session_state.user_answers.append(user_answer)
+        if user_answer == correct:
+            st.success("Correct!")
+            st.session_state.score += 50
+        else:
+            st.warning("Incorrect!")
+            st.info(f"Correct Answer: {correct}")
+        st.session_state.submitted = True
+
+    if st.session_state.submitted:
+        if st.button("Next Question"):
+            st.session_state.q_index += 1
+            st.session_state.submitted = False
+
+        if st.session_state.q_index >= len(data["questions"]):
+            st.session_state.finished = True
+            st.session_state.quiz_started = False
+
+# --- Quiz Completion ---
+if st.session_state.finished:
+    st.success(f"Quiz Completed! Your Score: {st.session_state.score}")
+    save_score(st.session_state.email, st.session_state.score)
+
+    # Show comparison chart
+    plot_score_comparison(st.session_state.email, st.session_state.score)
+
+# --- Restart Button ---
+if st.button("Take Another Quiz"):
+    st.session_state.quiz_started = False
+    st.session_state.finished = False
+    st.session_state.q_index = 0
+    st.session_state.score = 0
+    st.session_state.user_answers = []
+    st.session_state.submitted = False
+    st.session_state.selected_field = None
